@@ -22,6 +22,7 @@ var concurrencyLimit int
 var serverURLStr string
 var streamCounter uint32
 var waitTime int
+var delayTime int
 var sentHeaders, sentRSTs, recvFrames int32
 var headerStart, headerEnd time.Time
 
@@ -30,12 +31,13 @@ func init() {
 	flag.IntVar(&numRequests, "requests", 5, "Number of requests to send")
 	flag.StringVar(&serverURLStr, "url", "https://localhost:443", "Server URL")
 	flag.IntVar(&waitTime, "wait", 0, "Wait time in milliseconds between starting workers")
+	flag.IntVar(&delayTime, "delay", 0, "Delay in milliseconds between sending HEADERS and RST_STREAM")
 	flag.IntVar(&concurrencyLimit, "concurrency", 0, "Maximum number of concurrent worker routines")
 	flag.Parse()
 }
 
 // HPACK headers, write HEADERS to server, and send RST_STREAM
-func sendRequest(framer *http2.Framer, mu *sync.Mutex, path string, serverURL *url.URL, doneChan chan<- struct{}) {
+func sendRequest(framer *http2.Framer, mu *sync.Mutex, path string, serverURL *url.URL, delay int, doneChan chan<- struct{}) {
 	defer func() {
 		doneChan <- struct{}{} // Signal that this worker is done
 	}()
@@ -50,7 +52,6 @@ func sendRequest(framer *http2.Framer, mu *sync.Mutex, path string, serverURL *u
 	encoder.WriteField(hpack.HeaderField{Name: ":scheme", Value: "https"})
 	encoder.WriteField(hpack.HeaderField{Name: ":authority", Value: serverURL.Host})
 
-	mu.Lock()
 	streamID := atomic.AddUint32(&streamCounter, 2) // Increment streamCounter and allocate stream ID in units of two to ensure stream IDs are odd numbered per RFC 9113
 	if err := framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
@@ -59,15 +60,13 @@ func sendRequest(framer *http2.Framer, mu *sync.Mutex, path string, serverURL *u
 		EndHeaders:    true,
 	}); err != nil {
 		fmt.Printf("[%d] Failed to send HEADERS: %s", streamID, err)
-		mu.Unlock()
 	} else {
 		atomic.AddInt32(&sentHeaders, 1)
 		fmt.Printf("[%d] Sent HEADERS on stream %d\n", streamID, streamID)
-		mu.Unlock()
 	}
 
 	// Sleep for several ms before sending RST_STREAM
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * time.Duration(delay))
 
 	if err := framer.WriteRSTStream(streamID, http2.ErrCodeCancel); err != nil {
 		fmt.Printf("[%d] Failed to send RST_STREAM: %s", streamID, err)
@@ -123,7 +122,7 @@ func main() {
 	}
 	mu.Unlock()
 
-	// Read and count received frames, print to stdout. Could be commented out if you don't care about reading or counting packets from the server.
+	// Read and count received frames, print to stdout
 	go func() {
 		for {
 			frame, err := framer.ReadFrame()
@@ -132,9 +131,10 @@ func main() {
 					return
 				}
 				fmt.Printf("Failed to read frame: %s", err)
+			} else {
+				atomic.AddInt32(&recvFrames, 1)
+				fmt.Printf("Received frame: %v\n", frame)
 			}
-			atomic.AddInt32(&recvFrames, 1)
-			fmt.Printf("Received frame: %v\n", frame)
 		}
 	}()
 
@@ -161,7 +161,7 @@ func main() {
 	// Send requests
 	for i := 0; i < numRequests; i++ {
 		time.Sleep(time.Millisecond * time.Duration(waitTime))
-		go sendRequest(framer, &mu, path, serverURL, doneChan)
+		go sendRequest(framer, &mu, path, serverURL, delayTime, doneChan)
 	}
 
 	// Wait for all workers to finish

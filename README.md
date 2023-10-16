@@ -36,14 +36,16 @@ go build -o rapidresetclient
 
 - `wait`: Wait time in milliseconds between starting workers (default is 0)
 
-- `concurrency`: Maximum number of concurrent workers (default is 0 for no limit)
+- `delay`: Delay in milliseconds between sending HEADERS and RST_STREAM frames (default is 0)
+
+- `concurrency`: Maximum number of concurrent workers (default is 0)
 
 ### Example
 
-Send 10 HTTP/2 requests (HEADERS and RST_STREAM frames) over a single connection to https://example.com using 5 workers and a wait time of 100 ms between each invocation.
+Send 10 HTTP/2 requests (HEADERS and RST_STREAM frames) over a single connection to https://example.com using 5 workers, a 10 ms delay between sending HEADERS and RST_STREAM frames, and a wait time of 100 ms between each invocation.
 
 ```
-./rapidresetclient  -requests=10  -url  https://example.com  -wait=100  -concurrency=5
+./rapidresetclient  -requests=10  -url  https://example.com  -wait=100  -delay=10 -concurrency=5
 ```
 
 ## Built With
@@ -56,12 +58,12 @@ Send 10 HTTP/2 requests (HEADERS and RST_STREAM frames) over a single connection
 
 -  Jeffrey  Lyon  -  *Initial  release*  - @secengjeff
 
-See  also  the  list  of [contributors](https://github.com/secengjeff/rapidresetclient/contributors)
+See also the list of [contributors](https://github.com/secengjeff/rapidresetclient/contributors)
 
 ## License
 
-This  project  is  licensed  under  the  Apache  License  -  see  the [LICENSE](LICENSE) file for details
+This project is licensed under the Apache License - see the [LICENSE](LICENSE) file for details
 
 ## Acknowledgments
 
-This  work  is  based  on  the [initial analysis  of  CVE-2023-44487](https://cloud.google.com/blog/products/identity-security/how-it-works-the-novel-http2-rapid-reset-ddos-attack) by  @jsnell  and  Daniele  Iamartino  at  Google.
+This work is based on the [initial analysis of CVE-2023-44487](https://cloud.google.com/blog/products/identity-security/how-it-works-the-novel-http2-rapid-reset-ddos-attack) by Juho Snellman and  Daniele Iamartino at Google.
