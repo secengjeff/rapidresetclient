@@ -120,7 +120,7 @@ func main() {
 		log.Fatalf("Failed to send client preface: %s", err)
 	}
 
-	// Initialize HTTP2 framer and writeLocktex
+	// Initialize HTTP2 framer and read/writeLock
 	framer := http2.NewFramer(conn, conn)
 	var writeLock sync.Mutex
 	var readLock sync.Mutex
